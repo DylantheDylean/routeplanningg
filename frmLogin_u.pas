@@ -21,6 +21,7 @@ type
 
 var
   frmLogin: TfrmLogin;
+  hi : string
 
 implementation
 
