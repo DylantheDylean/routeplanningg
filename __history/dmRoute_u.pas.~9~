@@ -1,0 +1,80 @@
+unit dmRoute_u;
+
+interface
+
+uses
+  System.SysUtils, System.Classes,ADODB,DB;
+
+type
+  TdmRoute = class(TDataModule)
+    procedure DataModuleCreate(Sender: TObject);
+
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+           conRoutePlannerDB :TADOconnection;
+    tblUsers : TADOtable;
+    dsrTblUsers : TDataSource ;
+    tblRoutes  : TADOtable;
+    dsrtblRoutes : TDATASource;
+    qryRoutePlanner : TADOQuery ;
+    dsrQueryTours : TDataSource ;
+  end;
+
+var
+  dmRoute: TdmRoute;
+
+implementation
+
+{%CLASSGROUP 'Vcl.Controls.TControl'}
+
+{$R *.dfm}
+
+
+
+procedure TdmRoute.DataModuleCreate(Sender: TObject);
+begin
+   conRoutePlannerDB := TADOConnection.Create(dmRoute);
+
+
+    tblUsers := TADOtable.create(dmRoute);
+    dsrTblUsers := TDataSource.create(dmRoute ) ;
+
+    tblRoutes :=TADOTable.Create(dmRoute);
+    dsrtblRoutes := TDataSource.Create( dmRoute);
+
+    dsrQueryTours := TDataSource.Create( dmRoute);
+    qryRoutePlanner := TADOQuery.Create(dmRoute);
+
+
+         conRoutePlannerDB.Close ;
+
+    //Connection code to Database
+    conRoutePlannerDB.ConnectionString :=
+      'Provider=Microsoft.Jet.OLEDB.4.0;Data Source=' +
+    ExtractFilePath(ParamStr(0)) + 'RoutePlanner2.mdb' +
+      '; Persist Security Info=False';
+    conRoutePlannerDB.LoginPrompt := False;
+    conRoutePlannerDB.Open;
+
+     //Linking database tables
+     tblUsers.Connection := conRoutePlannerDB;
+     tblUsers.TableName:= 'tblUsers';
+
+     tblRoutes.Connection := conRoutePlannerDB ;
+     tblRoutes.TableName :='tblRoutes';
+
+     //Linking the datasource
+     dsrTblUsers.DataSet :=tblUsers;
+     dsrtblRoutes.DataSet:=tblRoutes ;
+
+      //linking SQL with Database
+     qryRoutePlanner.Connection := conRoutePlannerDB ;
+     dsrTblUsers.DataSet := qryRoutePlanner ;
+
+     tblUsers.Open ;
+     tblRoutes.Open;
+end;
+
+end.

@@ -1,0 +1,587 @@
+unit frmMainPage_u;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls, Math,
+  MapDisplay; // Custom component for map display
+
+type
+  TfrmMainPage = class(TForm)
+    pnlControls: TPanel;
+    pnlMap: TPanel;
+    grpLocationInput: TGroupBox;
+    lblLocationName: TLabel;
+    edtLocationName: TEdit;
+    lblLatitude: TLabel;
+    lblLongitude: TLabel;
+    lblAddress: TLabel;
+    edtLatitude: TEdit;
+    edtLongitude: TEdit;
+    edtAddress: TEdit;
+    grpMapOptions: TGroupBox;
+    btnAddLocation: TButton;
+    btnSetAsEnd: TButton;
+    btnClearRoute: TButton;
+    btnCalculateRoute: TButton;
+    btnSetAsStart: TButton;
+    btnRemoveLocation: TButton;
+    btnSaveMap: TButton;
+    btnClearAll: TButton;
+    grpLocations: TGroupBox;
+    lstLocations: TListBox;
+    grpRoute: TGroupBox;
+    memoRouteInfo: TMemo;
+    chkShowGrid: TCheckBox;
+    chkShowCoordinates: TCheckBox;
+    SaveDialog: TSaveDialog;
+
+    procedure FormCreate(Sender: TObject);
+    procedure FormDestroy(Sender: TObject);
+    procedure FormShow(Sender: TObject);
+    procedure btnAddLocationClick(Sender: TObject);
+    procedure btnRemoveLocationClick(Sender: TObject);
+    procedure btnClearAllClick(Sender: TObject);
+    procedure btnSetAsStartClick(Sender: TObject);
+    procedure btnSetAsEndClick(Sender: TObject);
+    procedure btnCalculateRouteClick(Sender: TObject);
+    procedure btnClearRouteClick(Sender: TObject);
+    procedure chkShowGridClick(Sender: TObject);
+    procedure chkShowCoordinatesClick(Sender: TObject);
+    procedure btnSaveMapClick(Sender: TObject);
+    procedure lstLocationsClick(Sender: TObject);
+    procedure MapLocationClick(Sender: TObject);
+
+  private
+    FRouteMap: TRouteMapDisplay;
+    FStartLocationIndex: Integer;
+    FEndLocationIndex: Integer;
+    FRoute: TArray<Integer>; // Route storage
+
+    procedure UpdateLocationsList;
+    procedure UpdateRouteInfo;
+    procedure ValidateInput;
+    function CalculateOptimalRoute: TArray<Integer>;
+    function CalculateDistance(Lat1, Lon1, Lat2, Lon2: Double): Double;
+    procedure AddSampleLocations; // Add this for testing
+
+  public
+    { Public declarations }
+  end;
+
+var
+  frmMainPage: TfrmMainPage;
+
+implementation
+
+{$R *.dfm}
+
+// ============================================================================
+// FORM INITIALIZATION
+// ============================================================================
+
+procedure TfrmMainPage.FormCreate(Sender: TObject);
+begin
+  FStartLocationIndex := -1;
+  FEndLocationIndex := -1;
+  SetLength(FRoute, 0);
+
+  // Create and setup the map display
+  FRouteMap := TRouteMapDisplay.Create(self);       //the code
+  FRouteMap.Parent := pnlMap;                       //pnl where visually displayed draw component inside this displays the information from thefroutemap
+  FRouteMap.Align := alClient;      //ensures froutemap filles the pnl
+  FRouteMap.SetMapTitle('Route Planning Map');
+  FRouteMap.OnLocationClick := MapLocationClick;
+
+  // Setup UI defaults
+  chkShowGrid.Checked := True;
+  chkShowCoordinates.Checked := True;
+  FRouteMap.SetShowGrid(True);
+  FRouteMap.SetShowCoordinates(True);
+
+  // Setup save dialog
+  SaveDialog.Filter := 'Bitmap files (*.bmp)|*.bmp';        //comeback to later
+  SaveDialog.DefaultExt := 'bmp';
+
+  AddSampleLocations ;
+  // Initialize button states
+  btnRemoveLocation.Enabled := False;
+  btnSetAsStart.Enabled := False;
+  btnSetAsEnd.Enabled := False;
+  btnCalculateRoute.Enabled := False;
+  btnClearRoute.Enabled := False;
+  btnClearAll.Enabled := False;
+end;
+
+procedure TfrmMainPage.FormShow(Sender: TObject);
+begin
+  // Add sample locations after form is shown and map is properly initialized
+  AddSampleLocations;
+end;
+
+procedure TfrmMainPage.FormDestroy(Sender: TObject);
+begin
+  if Assigned(FRouteMap) then
+    FRouteMap.Free;
+end;
+
+// ============================================================================
+// SAMPLE DATA FOR TESTING
+// ============================================================================
+
+procedure TfrmMainPage.AddSampleLocations;
+begin
+  // Add some sample Cape Town locations for testing
+ FRouteMap.AddLocation('V&A Waterfront', 'Victoria & Alfred Waterfront, Cape Town', -33.90771781254808, 18.42012036140011);
+FRouteMap.AddLocation('Table Mountain', 'Table Mountain National Park, Cape Town', -33.93714410936018, 18.39404749441909);
+FRouteMap.AddLocation('tigers milk Camps Bay', 'Camps Bay Beach, Cape Town', -33.95023327736164, 18.378810968297397);
+FRouteMap.AddLocation('Kirstenbosch', 'Kirstenbosch Botanical Garden, Cape Town',-33.98735873828505, 18.432700539463088);
+FRouteMap.AddLocation('Cape Point', 'Cape Point, Cape Peninsula', -34.35664649182129, 18.496769672486707);
+
+  UpdateLocationsList;
+
+  // Set default start location sample
+  edtLocationName.Text := 'Stellenbosch';
+  edtLatitude.Text := '-33.9321';
+  edtLongitude.Text := '18.8602';
+  edtAddress.Text := 'Stellenbosch, Western Cape';
+end;
+
+// ============================================================================
+// LOCATION MANAGEMENT
+// ============================================================================
+
+procedure TfrmMainPage.btnAddLocationClick;
+var
+  Lat, Lon: Double;
+begin
+  try
+    ValidateInput; // All validation is done here
+
+    // Convert coordinates (we know they're valid)
+    Lat := StrToFloat(StringReplace(Trim(edtLatitude.Text), ',', '.', [rfReplaceAll]), TFormatSettings.Invariant);     //tformatsettingsinvariant make so any pc expects a .
+    Lon := StrToFloat(StringReplace(Trim(edtLongitude.Text), ',', '.', [rfReplaceAll]), TFormatSettings.Invariant);
+
+    // Add location to map
+    FRouteMap.AddLocation(
+      Trim(edtLocationName.Text),
+      Trim(edtAddress.Text),
+      Lat,
+      Lon
+    );
+
+    // Clear inputs and refresh
+    edtLocationName.Clear;
+    edtAddress.Clear;
+    edtLatitude.Clear;
+    edtLongitude.Clear;
+    UpdateLocationsList;
+    edtLocationName.SetFocus;
+  except
+    on E: Exception do
+      ShowMessage('Error adding location: ' + E.Message);
+  end;
+end;
+
+
+procedure TfrmMainPage.btnRemoveLocationClick(Sender: TObject);
+var
+  Index: Integer;
+begin
+  Index := lstLocations.ItemIndex;
+
+  if Index >= 0 then
+  begin
+    FRouteMap.RemoveLocation(Index);
+
+    // Update start/end indices
+    if FStartLocationIndex = Index then
+      FStartLocationIndex := -1
+    else if FStartLocationIndex > Index then
+      Dec(FStartLocationIndex);
+
+    if FEndLocationIndex = Index then
+      FEndLocationIndex := -1
+    else if FEndLocationIndex > Index then
+      Dec(FEndLocationIndex);
+
+    // Update the map's start/end points
+    FRouteMap.SetStartEndPoints(FStartLocationIndex, FEndLocationIndex);
+
+    UpdateLocationsList;
+    UpdateRouteInfo;
+  end;
+end;
+
+procedure TfrmMainPage.btnClearAllClick(Sender: TObject);
+begin
+  if MessageDlg('Clear all locations?', mtConfirmation, [mbYes, mbNo], 0) = mrYes then
+  begin
+    FRouteMap.ClearLocations;
+    FStartLocationIndex := -1;
+    FEndLocationIndex := -1;
+    SetLength(FRoute, 0);
+    UpdateLocationsList;
+    UpdateRouteInfo;
+  end;
+end;
+
+procedure TfrmMainPage.btnSetAsStartClick(Sender: TObject);               //here
+var
+  Index: Integer;
+begin
+  Index := lstLocations.ItemIndex;
+  if Index >= 0 then
+  begin
+    FStartLocationIndex := Index;
+    FRouteMap.SetStartEndPoints(FStartLocationIndex, FEndLocationIndex);
+    UpdateLocationsList;
+    UpdateRouteInfo;
+  end;
+
+
+end;
+
+procedure TfrmMainPage.btnSetAsEndClick(Sender: TObject);
+var
+  Index: Integer;
+begin
+  Index := lstLocations.ItemIndex;
+  if Index >= 0 then
+  begin
+    FEndLocationIndex := Index;
+    FRouteMap.SetStartEndPoints(FStartLocationIndex, FEndLocationIndex);
+    UpdateLocationsList;
+    UpdateRouteInfo;
+  end;
+end;
+
+// ============================================================================
+// ROUTE CALCULATIONS                                                                                          //here
+// ============================================================================
+
+procedure TfrmMainPage.btnCalculateRouteClick(Sender: TObject);
+var
+  RouteOrder: TArray<Integer>;
+  i: Integer;
+  TotalDistance: Double;
+  RouteText: string;
+  Location: TLocationPoint;
+begin
+  if (FStartLocationIndex = -1) or (FEndLocationIndex = -1) then
+  begin
+    ShowMessage('Please set both start and end locations before calculating route.');
+    Exit;
+  end;
+
+  if FRouteMap.GetLocationCount < 2 then
+  begin
+    ShowMessage('At least 2 locations are required to calculate a route.');
+    Exit;
+  end;
+
+  try
+    RouteOrder := CalculateOptimalRoute;
+    if Length(RouteOrder) = 0 then
+    begin
+      ShowMessage('Unable to calculate route.');
+      Exit;
+    end;
+
+    FRoute := RouteOrder; // Store the route
+    TotalDistance := 0;
+    RouteText := 'Optimal Route:' + #13#10 + #13#10;
+
+    // Calculate total distance and build route text
+    for i := 0 to Length(RouteOrder) - 2 do
+    begin
+      Location := FRouteMap.GetLocation(RouteOrder[i]);
+      RouteText := RouteText + Format('%d. %s' + #13#10, [i + 1, Location.Name]);
+      TotalDistance := TotalDistance + CalculateDistance(
+        FRouteMap.GetLocation(RouteOrder[i]).Latitude,
+        FRouteMap.GetLocation(RouteOrder[i]).Longitude,
+        FRouteMap.GetLocation(RouteOrder[i + 1]).Latitude,
+        FRouteMap.GetLocation(RouteOrder[i + 1]).Longitude
+      );
+    end;
+
+    // Add final destination
+    Location := FRouteMap.GetLocation(RouteOrder[High(RouteOrder)]);
+    RouteText := RouteText + Format('%d. %s' + #13#10 + #13#10, [Length(RouteOrder), Location.Name]);
+    RouteText := RouteText + Format('Total Distance: %.2f km', [TotalDistance]);
+
+    memoRouteInfo.Text := RouteText;
+
+    // Set the route on the map display
+    FRouteMap.SetRoute(RouteOrder);
+
+    UpdateLocationsList; // Update button states
+
+  except
+    on E: Exception do
+      ShowMessage('Error calculating route: ' + E.Message);
+  end;
+end;
+
+procedure TfrmMainPage.btnClearRouteClick(Sender: TObject);
+begin
+  FRouteMap.ClearRoute;
+  SetLength(FRoute, 0);
+  memoRouteInfo.Clear;
+  UpdateLocationsList; // Update button states
+end;
+
+// ============================================================================
+// MAP OPTIONS
+// ============================================================================
+
+procedure TfrmMainPage.chkShowGridClick(Sender: TObject);
+begin
+  FRouteMap.SetShowGrid(chkShowGrid.Checked);
+end;
+
+procedure TfrmMainPage.chkShowCoordinatesClick(Sender: TObject);
+begin
+  FRouteMap.SetShowCoordinates(chkShowCoordinates.Checked);
+end;
+
+procedure TfrmMainPage.btnSaveMapClick(Sender: TObject);
+begin
+  if SaveDialog.Execute then
+  begin
+    try
+      FRouteMap.SaveMapToFile(SaveDialog.FileName);
+      ShowMessage('Map saved successfully!');
+    except
+      on E: Exception do
+        ShowMessage('Error saving map: ' + E.Message);
+    end;
+  end;
+end;
+
+// ============================================================================
+// EVENT HANDLERS
+// ============================================================================
+
+procedure TfrmMainPage.lstLocationsClick(Sender: TObject);
+var
+  Index: Integer;
+begin
+  Index := lstLocations.ItemIndex;
+  if Index >= 0 then
+  begin
+    // Update button states
+    btnRemoveLocation.Enabled := True;
+    btnSetAsStart.Enabled := True;
+    btnSetAsEnd.Enabled := True;
+  end
+  else
+  begin
+    btnRemoveLocation.Enabled := False;
+    btnSetAsStart.Enabled := False;
+    btnSetAsEnd.Enabled := False;
+  end;
+end;
+
+procedure TfrmMainPage.MapLocationClick(Sender: TObject);
+var
+  ClickedIndex: Integer;
+begin
+  // This is called when a location is clicked on the map
+  ClickedIndex := FRouteMap.ClickedLocationIndex;
+  if ClickedIndex >= 0 then
+  begin
+    lstLocations.ItemIndex := ClickedIndex;
+    lstLocationsClick(nil);
+  end;
+end;
+
+// ============================================================================
+// PRIVATE METHODS
+// ============================================================================
+
+procedure TfrmMainPage.UpdateLocationsList;
+var
+  i: Integer;
+  LocationText: string;
+  Location: TLocationPoint;
+begin
+  lstLocations.Clear;
+
+  for i := 0 to FRouteMap.GetLocationCount - 1 do
+  begin
+    Location := FRouteMap.GetLocation(i);
+    LocationText := Location.Name;
+
+    if i = FStartLocationIndex then
+      LocationText := LocationText + ' [START]';
+    if i = FEndLocationIndex then
+      LocationText := LocationText + ' [END]';
+
+    lstLocations.Items.Add(LocationText);
+  end;
+
+  // Update button states
+  btnCalculateRoute.Enabled := (FStartLocationIndex >= 0) and (FEndLocationIndex >= 0) and (FRouteMap.GetLocationCount >= 2);
+  btnClearRoute.Enabled := Length(FRoute) > 0;
+  btnClearAll.Enabled := FRouteMap.GetLocationCount > 0;
+  btnSaveMap.Enabled := FRouteMap.GetLocationCount > 0;
+end;
+
+procedure TfrmMainPage.UpdateRouteInfo;
+begin
+  if Length(FRoute) = 0 then
+    memoRouteInfo.Clear;
+end;
+
+procedure TfrmMainPage.ValidateInput;
+var
+  Lat, Lon: Double;
+  LatText, LonText: string;
+begin
+  // Check required fields
+  if Trim(edtLocationName.Text) = '' then
+    raise Exception.Create('Location name is required');
+  if Trim(edtLatitude.Text) = '' then
+    raise Exception.Create('Latitude is required');
+  if Trim(edtLongitude.Text) = '' then
+    raise Exception.Create('Longitude is required');
+
+  // Normalize decimal separators (comma to period)
+  LatText := StringReplace(Trim(edtLatitude.Text), ',', '.', [rfReplaceAll]);
+  LonText := StringReplace(Trim(edtLongitude.Text), ',', '.', [rfReplaceAll]);
+
+  // Validate latitude
+  if not TryStrToFloat(LatText, Lat, TFormatSettings.Invariant) then
+    raise Exception.Create('Invalid latitude format');
+  if (Lat < -90) or (Lat > 90) then
+    raise Exception.Create('Latitude must be between -90 and 90');
+
+  // Validate longitude
+  if not TryStrToFloat(LonText, Lon, TFormatSettings.Invariant) then
+    raise Exception.Create('Invalid longitude format');
+  if (Lon < -180) or (Lon > 180) then
+    raise Exception.Create('Longitude must be between -180 and 180');
+end;
+
+function TfrmMainPage.CalculateOptimalRoute: TArray<Integer>;
+var
+  LocationCount: Integer;
+  i, j: Integer;
+  CurrentLocation: Integer;
+  NearestLocation: Integer;
+  MinDistance: Double;
+  Distance: Double;
+  Visited: TArray<Boolean>;
+  RouteOrder: TArray<Integer>;
+  CurrentLoc, CheckLoc: TLocationPoint;
+  RouteIndex: Integer;
+begin
+  LocationCount := FRouteMap.GetLocationCount;
+
+  if LocationCount < 2 then
+  begin
+    SetLength(Result, 0);
+    Exit;
+  end;
+
+  // For only 2 locations (start and end), create simple route
+  if LocationCount = 2 then
+  begin
+    SetLength(Result, 2);
+    Result[0] := FStartLocationIndex;  // Start is ALWAYS first
+    Result[1] := FEndLocationIndex;    // End is ALWAYS last
+    Exit;
+  end;
+
+  // Initialize arrays
+  SetLength(Visited, LocationCount);
+  SetLength(RouteOrder, LocationCount);
+
+  // Initialize all as false
+  for i := 0 to LocationCount - 1 do
+    Visited[i] := False;
+
+  // ALWAYS start with the designated start location as first in route
+  CurrentLocation := FStartLocationIndex;
+  RouteOrder[0] := CurrentLocation;
+  Visited[CurrentLocation] := True;
+  RouteIndex := 1;
+
+  // Visit all intermediate locations using nearest neighbor
+  // but exclude the end location until we're ready to finish
+  while RouteIndex < LocationCount - 1 do
+  begin
+    NearestLocation := -1;
+    MinDistance := MaxDouble;
+    CurrentLoc := FRouteMap.GetLocation(CurrentLocation);
+
+    // Find nearest unvisited location (excluding end location until last)
+    for j := 0 to LocationCount - 1 do
+    begin
+      if not Visited[j] and (j <> FEndLocationIndex) then
+      begin
+        CheckLoc := FRouteMap.GetLocation(j);
+        Distance := CalculateDistance(
+          CurrentLoc.Latitude,
+          CurrentLoc.Longitude,
+          CheckLoc.Latitude,
+          CheckLoc.Longitude
+        );
+
+        if Distance < MinDistance then
+        begin
+          MinDistance := Distance;
+          NearestLocation := j;
+        end;
+      end;
+    end;
+
+    // If no more intermediate locations, break to add end location
+    if NearestLocation = -1 then
+      Break;
+
+    RouteOrder[RouteIndex] := NearestLocation;
+    Visited[NearestLocation] := True;
+    CurrentLocation := NearestLocation;
+    Inc(RouteIndex);
+  end;
+
+  // ALWAYS end with the designated end location as last in route
+  RouteOrder[RouteIndex] := FEndLocationIndex;
+  Inc(RouteIndex);
+
+  // Create result array with proper size
+  SetLength(Result, RouteIndex);
+  for i := 0 to RouteIndex - 1 do
+    Result[i] := RouteOrder[i];
+end;
+
+function TfrmMainPage.CalculateDistance(Lat1, Lon1, Lat2, Lon2: Double): Double;
+const
+  EarthRadius = 6371; // Earth radius in kilometers
+var
+  dLat, dLon: Double;
+  a, c: Double;
+begin
+  // Convert degrees to radians
+  Lat1 := DegToRad(Lat1);
+  Lon1 := DegToRad(Lon1);
+  Lat2 := DegToRad(Lat2);
+  Lon2 := DegToRad(Lon2);
+
+  // Haversine formula
+  dLat := Lat2 - Lat1;
+  dLon := Lon2 - Lon1;
+
+  a := Sin(dLat / 2) * Sin(dLat / 2) +
+       Cos(Lat1) * Cos(Lat2) *
+       Sin(dLon / 2) * Sin(dLon / 2);
+
+  c := 2 * ArcTan2(Sqrt(a), Sqrt(1 - a));
+
+  Result := EarthRadius * c;
+end;
+
+end.

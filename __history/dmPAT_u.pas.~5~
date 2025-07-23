@@ -1,0 +1,36 @@
+unit dmPAT_u;
+
+interface
+
+uses
+  System.SysUtils, System.Classes,ADODB,DB;
+
+type
+  TdmPATDB = class(TDataModule)
+    procedure DataModuleCreate(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+    conPATDB :TADOconnection;
+    tblUsers : TADOtable;
+    dsrTblUsers : TADODataSet;
+  end;
+
+var
+  dmPATDB: TdmPATDB;
+
+implementation
+
+{%CLASSGROUP 'Vcl.Controls.TControl'}
+
+{$R *.dfm}
+
+procedure TdmPATDB.DataModuleCreate(Sender: TObject);
+begin
+    conPATDB := TADOconnection.create(dmPATDB );
+    tblUsers := TADOtable.create(dmPATDB );
+    dsrTblUsers := TADODataSet.create(dmPATDB );
+end;
+
+end.

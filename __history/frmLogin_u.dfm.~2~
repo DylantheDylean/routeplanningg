@@ -1,0 +1,50 @@
+object frmLogin: TfrmLogin
+  Left = 0
+  Top = 0
+  Caption = 'Form3'
+  ClientHeight = 441
+  ClientWidth = 624
+  Color = clBtnFace
+  Font.Charset = DEFAULT_CHARSET
+  Font.Color = clWindowText
+  Font.Height = -12
+  Font.Name = 'Segoe UI'
+  Font.Style = []
+  TextHeight = 15
+  object lblPassword: TLabel
+    Left = 88
+    Top = 147
+    Width = 50
+    Height = 15
+    Caption = 'Password'
+  end
+  object lblUsername: TLabel
+    Left = 88
+    Top = 96
+    Width = 53
+    Height = 15
+    Caption = 'Username'
+  end
+  object edtUserName: TEdit
+    Left = 192
+    Top = 93
+    Width = 121
+    Height = 23
+    TabOrder = 0
+  end
+  object edtPassword: TEdit
+    Left = 192
+    Top = 144
+    Width = 121
+    Height = 23
+    TabOrder = 1
+  end
+  object Button1: TButton
+    Left = 312
+    Top = 352
+    Width = 75
+    Height = 25
+    Caption = 'Button1'
+    TabOrder = 2
+  end
+end
